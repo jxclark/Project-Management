@@ -1,11 +1,16 @@
 {
-  "name": "shadcn-ui-monorepo",
+  "name": "workstream",
   "version": "0.0.1",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
     "lint": "turbo lint",
+    "type-check": "turbo type-check",
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
   },
   "devDependencies": {
