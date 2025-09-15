@@ -5,9 +5,8 @@
     "type": "module",
     "scripts": {
       "dev": "convex dev",
-      "build": "convex deploy",
-      "lint": "echo \"No linting for backend\"",
-      "type-check": "echo \"No type-check for backend\""
+      "setup": "convex dev --until-success",
+      "logout": "convex logout"
     },
     "dependencies": {
       "convex": "^1.27.0"
