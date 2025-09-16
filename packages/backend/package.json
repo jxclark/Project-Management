@@ -1,18 +1,19 @@
 {
-    "name": "@workspace/backend",
-    "version": "0.0.1",
-    "private": true,
-    "type": "module",
-    "scripts": {
-      "dev": "convex dev",
-      "setup": "convex dev --until-success",
-      "logout": "convex logout"
-    },
-    "dependencies": {
-      "convex": "^1.27.0"
-    },
-    "devDependencies": {
-      "@workspace/typescript-config": "workspace:*",
-      "typescript": "^5.9.2"
-    }
+  "name": "@workspace/backend",
+  "scripts": {
+    "dev": "convex dev",
+    "setup": "convex dev --until-success",
+    "logout": "convex logout"
+  },
+  "exports": {
+    "./convex/*": "./convex/*"
+  },
+  "dependencies": {
+    "convex": "1.27.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.14",
+    "@workspace/typescript-config": "workspace:*",
+    "typescript": "latest"
   }
+}

@@ -1,11 +1,12 @@
 {
   "extends": "@workspace/typescript-config/nextjs.json",
   "compilerOptions": {
+    "noEmit": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"],
       "@workspace/ui/*": ["../../packages/ui/src/*"],
-      "@workspace/backend/*": ["../../packages/backend/convex/*"]
+      "@workspace/backend/*": ["../../packages/backend/*"]
     },
     "plugins": [
       {
