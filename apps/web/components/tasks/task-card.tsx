@@ -22,6 +22,7 @@ import {
   Circle,
   Clock,
   AlertCircle,
+  UserPlus,
 } from "lucide-react"
 import { TaskWithAssignee, TaskStatus, TaskPriority, TASK_STATUS_OPTIONS, TASK_PRIORITY_OPTIONS } from "@/types/taskTypes"
 import { format, isAfter, isToday, isTomorrow } from "date-fns"
@@ -31,6 +32,7 @@ interface TaskCardProps {
   onEdit?: (task: TaskWithAssignee) => void
   onDelete?: (taskId: string) => void
   onStatusChange?: (taskId: string, status: TaskStatus) => void
+  onInviteToTask?: (taskId: string, taskTitle: string) => void
   compact?: boolean
 }
 
@@ -39,6 +41,7 @@ export function TaskCard({
   onEdit, 
   onDelete, 
   onStatusChange,
+  onInviteToTask,
   compact = false 
 }: TaskCardProps) {
   const [isLoading, setIsLoading] = useState(false)
@@ -134,6 +137,12 @@ export function TaskCard({
                     <DropdownMenuItem onClick={() => onEdit(task)}>
                       <Edit className="w-4 h-4 mr-2" />
                       Edit Task
+                    </DropdownMenuItem>
+                  )}
+                  {onInviteToTask && (
+                    <DropdownMenuItem onClick={() => onInviteToTask(task._id, task.title)}>
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Assign to Someone
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
