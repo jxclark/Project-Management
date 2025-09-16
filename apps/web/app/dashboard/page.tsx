@@ -1,10 +1,46 @@
-import { currentUser } from '@clerk/nextjs/server'
-import { redirect } from 'next/navigation'
-import { Button } from '@workspace/ui/components/button'
-import { Plus, TrendingUp, Clock, Users } from 'lucide-react'
+"use client"
 
-export default async function DashboardPage() {
-  const user = await currentUser()
+import { useUser } from "@clerk/nextjs"
+import { redirect } from "next/navigation"
+import { useState } from "react"
+import { Button } from "@workspace/ui/components/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@workspace/ui/components/card"
+import { Plus, Users, CheckSquare, BarChart3, Calendar, Bell, Clock, TrendingUp } from "lucide-react"
+import Link from "next/link"
+import { useInitUser } from "@/hooks/use-init-user"
+import { useProjects } from "@/hooks/use-projects"
+import { useMyTasks } from "@/hooks/use-tasks"
+import { ProjectModal } from "@/components/projects/project-modal"
+import { CreateProjectData } from "@/types/projectTypes"
+import { toast } from "sonner"
+
+export default function DashboardPage() {
+  const { user, isLoaded } = useUser()
+  const { projects, isLoading: projectsLoading, createProject } = useProjects()
+  const { tasks, isLoading: tasksLoading } = useMyTasks()
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  
+  // Initialize user data in Convex
+  useInitUser()
+
+  // Calculate active tasks (not completed or cancelled)
+  const activeTasks = tasks.filter(task => 
+    task.status !== "completed" && task.status !== "cancelled"
+  )
+
+  const handleCreateProject = async (data: CreateProjectData) => {
+    try {
+      await createProject(data)
+      setCreateModalOpen(false)
+      toast.success('Project created successfully!')
+    } catch (error) {
+      toast.error('Failed to create project')
+    }
+  }
+
+  if (!isLoaded) {
+    return <div>Loading...</div>
+  }
 
   if (!user) {
     redirect('/sign-in')
@@ -24,18 +60,25 @@ export default async function DashboardPage() {
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-4">
-        <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+        <Button 
+          onClick={() => setCreateModalOpen(true)}
+          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+        >
           <Plus className="w-4 h-4 mr-2" />
           New Project
         </Button>
-        <Button variant="outline">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Task
-        </Button>
-        <Button variant="outline">
-          <Users className="w-4 h-4 mr-2" />
-          Invite Team
-        </Button>
+        <Link href="/dashboard/tasks">
+          <Button variant="outline">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Task
+          </Button>
+        </Link>
+        <Link href="/dashboard/team">
+          <Button variant="outline">
+            <Users className="w-4 h-4 mr-2" />
+            Invite Team
+          </Button>
+        </Link>
       </div>
 
       {/* Stats Cards */}
@@ -44,7 +87,9 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Projects</h3>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">0</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                {projectsLoading ? "..." : projects.length}
+              </div>
             </div>
             <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
               <TrendingUp className="w-6 h-6 text-blue-600" />
@@ -56,7 +101,9 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Active Tasks</h3>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">0</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                {tasksLoading ? "..." : activeTasks.length}
+              </div>
             </div>
             <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
               <Clock className="w-6 h-6 text-purple-600" />
@@ -101,6 +148,14 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Project Modal */}
+      <ProjectModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+        onSubmit={handleCreateProject}
+        isLoading={projectsLoading}
+      />
     </div>
   )
 }

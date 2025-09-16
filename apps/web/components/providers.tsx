@@ -2,20 +2,26 @@
 
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider } from "next-themes"
-import { ClerkProvider } from '@clerk/nextjs'
+import { ClerkProvider, useAuth } from '@clerk/nextjs'
+import { ConvexProvider, ConvexReactClient } from "convex/react"
+import { ConvexProviderWithClerk } from "convex/react-clerk"
+
+const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider>
-      <NextThemesProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
-        enableColorScheme
-      >
-        {children}
-      </NextThemesProvider>
+      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+        <NextThemesProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+          enableColorScheme
+        >
+          {children}
+        </NextThemesProvider>
+      </ConvexProviderWithClerk>
     </ClerkProvider>
   )
 }

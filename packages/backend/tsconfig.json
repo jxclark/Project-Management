@@ -1,12 +1,19 @@
 {
-    "extends": "@workspace/typescript-config/base.json",
     "compilerOptions": {
+      "noEmit": true,
+      "skipLibCheck": true,
       "baseUrl": ".",
       "paths": {
         "@workspace/backend/*": ["./convex/*"]
       }
     },
-    "include": ["."],
-    "exclude": ["node_modules"]
-  }
-  
+    "include": [
+      "convex/**/*.ts",
+      "convex/**/*.tsx"
+    ],
+    "exclude": [
+      "node_modules",
+      "dist",
+      "convex/_generated/**"
+    ]
+}
