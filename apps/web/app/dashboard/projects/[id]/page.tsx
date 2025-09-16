@@ -28,6 +28,7 @@ import { ProjectModal } from '@/components/projects/project-modal'
 import { StatusTracker } from '@/components/projects/status-tracker'
 import { TaskCard } from '@/components/tasks/task-card'
 import { TaskModal } from '@/components/tasks/task-modal'
+import { TaskInviteModal } from '@/components/team/task-invite-modal'
 import { useProjects } from '@/hooks/use-projects'
 import { useTasks } from '@/hooks/use-tasks'
 import { CreateProjectData, ProjectStatus } from '@/types/projectTypes'
@@ -40,7 +41,9 @@ export default function ProjectDetailPage() {
   const { isSignedIn, isLoaded } = useAuth()
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
+  const [taskInviteModalOpen, setTaskInviteModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<TaskWithAssignee | undefined>()
+  const [invitingTask, setInvitingTask] = useState<{ id: string; title: string; projectName?: string } | undefined>()
   
   const projectId = params.id as Id<"projects">
   
@@ -130,6 +133,15 @@ export default function ProjectDetailPage() {
     } catch (error) {
       toast.error('Failed to delete task')
     }
+  }
+
+  const handleInviteToTask = (taskId: string, taskTitle: string) => {
+    setInvitingTask({
+      id: taskId,
+      title: taskTitle,
+      projectName: project?.name
+    })
+    setTaskInviteModalOpen(true)
   }
 
   const openEditModal = () => {
@@ -486,6 +498,7 @@ export default function ProjectDetailPage() {
                   onEdit={handleEditTask}
                   onDelete={handleDeleteTask}
                   onStatusChange={handleTaskStatusChange}
+                  onInviteToTask={handleInviteToTask}
                 />
               )
             })}
@@ -544,6 +557,17 @@ export default function ProjectDetailPage() {
           avatar: m.avatar,
         })) || []}
       />
+
+      {/* Task Invite Modal */}
+      {invitingTask && (
+        <TaskInviteModal
+          open={taskInviteModalOpen}
+          onOpenChange={setTaskInviteModalOpen}
+          taskId={invitingTask.id as any}
+          taskTitle={invitingTask.title}
+          projectName={invitingTask.projectName}
+        />
+      )}
     </div>
   )
 }

@@ -11,22 +11,36 @@ import { useInitUser } from "@/hooks/use-init-user"
 import { useProjects } from "@/hooks/use-projects"
 import { useMyTasks } from "@/hooks/use-tasks"
 import { ProjectModal } from "@/components/projects/project-modal"
+import { InviteModal } from "@/components/team/invite-modal"
 import { CreateProjectData } from "@/types/projectTypes"
 import { toast } from "sonner"
+import { useQuery } from "convex/react"
+import { api } from "@workspace/backend/convex/_generated/api"
 
 export default function DashboardPage() {
   const { user, isLoaded } = useUser()
   const { projects, isLoading: projectsLoading, createProject } = useProjects()
   const { tasks, isLoading: tasksLoading } = useMyTasks()
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [inviteModalOpen, setInviteModalOpen] = useState(false)
   
   // Initialize user data in Convex
   useInitUser()
+
+  // Get invitations to calculate team member count
+  const invitations = useQuery(
+    api.invitations.getMyInvitations,
+    user && isLoaded ? {} : "skip"
+  ) || []
 
   // Calculate active tasks (not completed or cancelled)
   const activeTasks = tasks.filter(task => 
     task.status !== "completed" && task.status !== "cancelled"
   )
+
+  // Calculate team member count (current user + accepted invitations)
+  const acceptedInvitations = invitations.filter(inv => inv.status === "accepted")
+  const teamMemberCount = acceptedInvitations.length + 1 // +1 for current user
 
   const handleCreateProject = async (data: CreateProjectData) => {
     try {
@@ -73,12 +87,13 @@ export default function DashboardPage() {
             Add Task
           </Button>
         </Link>
-        <Link href="/dashboard/team">
-          <Button variant="outline">
-            <Users className="w-4 h-4 mr-2" />
-            Invite Team
-          </Button>
-        </Link>
+        <Button 
+          variant="outline"
+          onClick={() => setInviteModalOpen(true)}
+        >
+          <Users className="w-4 h-4 mr-2" />
+          Invite Team
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -115,7 +130,9 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Team Members</h3>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">1</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                {teamMemberCount}
+              </div>
             </div>
             <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg flex items-center justify-center">
               <Users className="w-6 h-6 text-indigo-600" />
@@ -135,16 +152,48 @@ export default function DashboardPage() {
             <span className="text-slate-600 dark:text-slate-300">Account created successfully</span>
           </div>
           <div className="flex items-center space-x-3">
-            <div className="w-6 h-6 bg-slate-300 rounded-full flex items-center justify-center">
-              <span className="text-slate-600 text-sm">2</span>
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+              projects.length > 0 
+                ? 'bg-green-500' 
+                : 'bg-slate-300'
+            }`}>
+              <span className={`text-sm ${
+                projects.length > 0 
+                  ? 'text-white' 
+                  : 'text-slate-600'
+              }`}>
+                {projects.length > 0 ? '✓' : '2'}
+              </span>
             </div>
-            <span className="text-slate-600 dark:text-slate-300">Create your first project</span>
+            <span className={`${
+              projects.length > 0 
+                ? 'text-slate-600 dark:text-slate-300' 
+                : 'text-slate-600 dark:text-slate-300'
+            }`}>
+              Create your first project {projects.length > 0 && `(${projects.length} created)`}
+            </span>
           </div>
           <div className="flex items-center space-x-3">
-            <div className="w-6 h-6 bg-slate-300 rounded-full flex items-center justify-center">
-              <span className="text-slate-600 text-sm">3</span>
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+              teamMemberCount > 1 
+                ? 'bg-green-500' 
+                : 'bg-slate-300'
+            }`}>
+              <span className={`text-sm ${
+                teamMemberCount > 1 
+                  ? 'text-white' 
+                  : 'text-slate-600'
+              }`}>
+                {teamMemberCount > 1 ? '✓' : '3'}
+              </span>
             </div>
-            <span className="text-slate-600 dark:text-slate-300">Invite team members</span>
+            <span className={`${
+              teamMemberCount > 1 
+                ? 'text-slate-600 dark:text-slate-300' 
+                : 'text-slate-600 dark:text-slate-300'
+            }`}>
+              Invite team members {teamMemberCount > 1 && `(${teamMemberCount} members)`}
+            </span>
           </div>
         </div>
       </div>
@@ -155,6 +204,12 @@ export default function DashboardPage() {
         onOpenChange={setCreateModalOpen}
         onSubmit={handleCreateProject}
         isLoading={projectsLoading}
+      />
+
+      {/* Invite Modal */}
+      <InviteModal
+        open={inviteModalOpen}
+        onOpenChange={setInviteModalOpen}
       />
     </div>
   )

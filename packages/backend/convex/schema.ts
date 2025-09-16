@@ -75,4 +75,37 @@ export default defineSchema({
   })
     .index("by_project", ["projectId"])
     .index("by_assignee", ["assignedTo"]),
+
+  invitations: defineTable({
+    email: v.string(),
+    invitedBy: v.string(), // Clerk user ID
+    projectId: v.optional(v.id("projects")), // Optional - for project-specific invites
+    taskId: v.optional(v.id("tasks")), // Optional - for task-specific invites
+    type: v.union(
+      v.literal("workspace"), // General workspace invitation
+      v.literal("project"),   // Project-specific invitation
+      v.literal("task")       // Task assignment invitation
+    ),
+    role: v.union(
+      v.literal("admin"),
+      v.literal("member"),
+      v.literal("viewer")
+    ),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("declined"),
+      v.literal("expired")
+    ),
+    token: v.string(), // Unique invitation token
+    expiresAt: v.number(), // timestamp
+    createdAt: v.number(), // timestamp
+    acceptedAt: v.optional(v.number()), // timestamp
+    message: v.optional(v.string()), // Optional message from inviter
+  })
+    .index("by_email", ["email"])
+    .index("by_token", ["token"])
+    .index("by_invited_by", ["invitedBy"])
+    .index("by_project", ["projectId"])
+    .index("by_task", ["taskId"]),
 });

@@ -21,6 +21,7 @@ import {
 import Link from "next/link"
 import { TaskCard } from "@/components/tasks/task-card"
 import { TaskModal } from "@/components/tasks/task-modal"
+import { TaskInviteModal } from "@/components/team/task-invite-modal"
 import { useMyTasks, useTasks } from "@/hooks/use-tasks"
 import { useProjects } from "@/hooks/use-projects"
 import { CreateTaskData, UpdateTaskData, TaskWithAssignee, TaskStatus, TaskPriority, TASK_STATUS_OPTIONS, TASK_PRIORITY_OPTIONS } from "@/types/taskTypes"
@@ -32,7 +33,9 @@ export default function TasksPage() {
   const { tasks, isLoading } = useMyTasks()
   const { projects } = useProjects()
   const [taskModalOpen, setTaskModalOpen] = useState(false)
+  const [taskInviteModalOpen, setTaskInviteModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<TaskWithAssignee | undefined>()
+  const [invitingTask, setInvitingTask] = useState<{ id: string; title: string; projectName?: string } | undefined>()
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all")
@@ -119,6 +122,18 @@ export default function TasksPage() {
     } catch (error) {
       toast.error('Failed to delete task')
     }
+  }
+
+  const handleInviteToTask = (taskId: string, taskTitle: string) => {
+    const task = tasks.find(t => t._id === taskId)
+    const project = task ? projects.find(p => p.id === task.projectId) : undefined
+    
+    setInvitingTask({
+      id: taskId,
+      title: taskTitle,
+      projectName: project?.name
+    })
+    setTaskInviteModalOpen(true)
   }
 
   const openTaskModal = () => {
@@ -342,6 +357,7 @@ export default function TasksPage() {
                     onEdit={handleEditTask}
                     onDelete={handleDeleteTask}
                     onStatusChange={handleTaskStatusChange}
+                    onInviteToTask={handleInviteToTask}
                   />
                 ))}
               </div>
@@ -361,6 +377,7 @@ export default function TasksPage() {
                   onEdit={handleEditTask}
                   onDelete={handleDeleteTask}
                   onStatusChange={handleTaskStatusChange}
+                  onInviteToTask={handleInviteToTask}
                 />
               ))}
             </div>
@@ -377,6 +394,17 @@ export default function TasksPage() {
         isLoading={isLoading}
         projectMembers={[]} // No project context in this view
       />
+
+      {/* Task Invite Modal */}
+      {invitingTask && (
+        <TaskInviteModal
+          open={taskInviteModalOpen}
+          onOpenChange={setTaskInviteModalOpen}
+          taskId={invitingTask.id as any}
+          taskTitle={invitingTask.title}
+          projectName={invitingTask.projectName}
+        />
+      )}
     </div>
   )
 }
