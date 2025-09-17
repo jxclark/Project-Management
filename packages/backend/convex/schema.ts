@@ -109,4 +109,32 @@ export default defineSchema({
     .index("by_invited_by", ["invitedBy"])
     .index("by_project", ["projectId"])
     .index("by_task", ["taskId"]),
+
+  notifications: defineTable({
+    userId: v.string(), // Clerk user ID of recipient
+    type: v.union(
+      v.literal("invitation_accepted"),
+      v.literal("invitation_declined"),
+      v.literal("invitation_expired"),
+      v.literal("invitation_cancelled"),
+      v.literal("task_assigned"),
+      v.literal("project_invitation"),
+      v.literal("workspace_invitation")
+    ),
+    title: v.string(),
+    message: v.string(),
+    read: v.boolean(),
+    actionUrl: v.optional(v.string()), // URL to navigate to when clicked
+    relatedId: v.optional(v.string()), // ID of related entity (invitation, project, task)
+    relatedType: v.optional(v.union(
+      v.literal("invitation"),
+      v.literal("project"),
+      v.literal("task")
+    )),
+    createdAt: v.number(), // timestamp
+    readAt: v.optional(v.number()), // timestamp when marked as read
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_read", ["userId", "read"])
+    .index("by_related", ["relatedId", "relatedType"]),
 });

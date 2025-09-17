@@ -590,6 +590,7 @@ export default function ProjectDetailPage() {
           email: m.email,
           avatar: m.avatar,
         })) || []}
+        projectEndDate={project?.endDate ? new Date(project.endDate) : undefined}
       />
 
       {/* Task Invite Modal */}
