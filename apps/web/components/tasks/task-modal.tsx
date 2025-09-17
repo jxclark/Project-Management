@@ -22,6 +22,7 @@ interface TaskModalProps {
     email: string
     avatar?: string
   }>
+  projectEndDate?: Date
 }
 
 export function TaskModal({ 
@@ -30,7 +31,8 @@ export function TaskModal({
   onSubmit, 
   task, 
   isLoading = false,
-  projectMembers = []
+  projectMembers = [],
+  projectEndDate
 }: TaskModalProps) {
   const isEditing = !!task
   
@@ -72,6 +74,7 @@ export function TaskModal({
           initialData={initialData}
           isLoading={isLoading}
           projectMembers={projectMembers}
+          projectEndDate={projectEndDate}
         />
       </DialogContent>
     </Dialog>

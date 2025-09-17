@@ -375,6 +375,16 @@ export const acceptInvitation = mutation({
       acceptedAt: Date.now(),
     })
 
+    // Create notification for the inviter
+    try {
+      await ctx.scheduler.runAfter(0, internal.notifications.createInvitationStatusNotification, {
+        invitationId: invitation._id,
+        status: "accepted",
+      })
+    } catch (error) {
+      console.error('Failed to create invitation status notification:', error)
+    }
+
     return invitation._id
   },
 })
@@ -399,6 +409,16 @@ export const declineInvitation = mutation({
     await ctx.db.patch(invitation._id, {
       status: "declined",
     })
+
+    // Create notification for the inviter
+    try {
+      await ctx.scheduler.runAfter(0, internal.notifications.createInvitationStatusNotification, {
+        invitationId: invitation._id,
+        status: "declined",
+      })
+    } catch (error) {
+      console.error('Failed to create invitation status notification:', error)
+    }
 
     return invitation._id
   },

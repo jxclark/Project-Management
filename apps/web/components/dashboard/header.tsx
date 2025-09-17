@@ -1,9 +1,9 @@
 "use client"
 
 import { UserButton } from '@clerk/nextjs'
-import { Bell, Search } from 'lucide-react'
-import { Button } from '@workspace/ui/components/button'
+import { Search } from 'lucide-react'
 import { Input } from '@workspace/ui/components/input'
+import { NotificationBell } from '@/components/notifications/notification-bell'
 
 export function DashboardHeader() {
   return (
@@ -28,12 +28,7 @@ export function DashboardHeader() {
       {/* Right side */}
       <div className="flex items-center gap-x-4 lg:gap-x-6">
         {/* Notifications */}
-        <Button variant="ghost" size="sm" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-xs text-white flex items-center justify-center">
-            3
-          </span>
-        </Button>
+        <NotificationBell />
 
         {/* Separator */}
         <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-slate-200 dark:lg:bg-slate-700" />

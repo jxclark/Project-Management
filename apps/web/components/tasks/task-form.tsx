@@ -34,17 +34,22 @@ import { format } from "date-fns"
 import { cn } from "@workspace/ui/lib/utils"
 import { CreateTaskData, UpdateTaskData, TaskPriority, TaskStatus, TASK_PRIORITY_OPTIONS, TASK_STATUS_OPTIONS } from "@/types/taskTypes"
 
-const taskFormSchema = z.object({
+const createTaskFormSchema = (projectEndDate?: Date) => z.object({
   projectId: z.string().optional(),
   title: z.string().min(1, "Title is required").max(100, "Title must be less than 100 characters"),
   description: z.string().optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]),
   status: z.enum(["todo", "in-progress", "completed", "cancelled"]).optional(),
   assignedTo: z.string().optional(),
-  dueDate: z.date().optional(),
+  dueDate: z.date().optional().refine((date) => {
+    if (!date || !projectEndDate) return true
+    return date <= projectEndDate
+  }, {
+    message: "Task due date cannot be after the project's end date"
+  }),
 })
 
-type TaskFormData = z.infer<typeof taskFormSchema>
+type TaskFormData = z.infer<ReturnType<typeof createTaskFormSchema>>
 
 interface TaskFormProps {
   onSubmit: (data: CreateTaskData | UpdateTaskData) => Promise<void>
@@ -57,6 +62,7 @@ interface TaskFormProps {
     email: string
     avatar?: string
   }>
+  projectEndDate?: Date
 }
 
 export function TaskForm({ 
@@ -64,11 +70,14 @@ export function TaskForm({
   onCancel, 
   initialData, 
   isLoading = false,
-  projectMembers = []
+  projectMembers = [],
+  projectEndDate
 }: TaskFormProps) {
   const [calendarOpen, setCalendarOpen] = useState(false)
   
   const isEditing = !!initialData?.title
+  
+  const taskFormSchema = createTaskFormSchema(projectEndDate)
   
   const form = useForm<TaskFormData>({
     resolver: zodResolver(taskFormSchema),
@@ -285,9 +294,12 @@ export function TaskForm({
                         field.onChange(date)
                         setCalendarOpen(false)
                       }}
-                      disabled={(date) =>
-                        date < new Date(new Date().setHours(0, 0, 0, 0))
-                      }
+                      disabled={(date) => {
+                        const today = new Date(new Date().setHours(0, 0, 0, 0))
+                        const isBeforeToday = date < today
+                        const isAfterProjectEnd = projectEndDate ? date > projectEndDate : false
+                        return isBeforeToday || isAfterProjectEnd
+                      }}
                       initialFocus
                     />
                   </PopoverContent>

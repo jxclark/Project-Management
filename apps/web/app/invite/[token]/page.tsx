@@ -17,6 +17,7 @@ export default function InvitePage() {
   const { isSignedIn, isLoaded } = useAuth()
   const { user } = useUser()
   const [isAccepting, setIsAccepting] = useState(false)
+  const [isDeclining, setIsDeclining] = useState(false)
   
   const token = params.token as string
   
@@ -28,6 +29,9 @@ export default function InvitePage() {
   
   // Accept invitation mutation
   const acceptInvitation = useMutation(api.invitations.acceptInvitation)
+  
+  // Decline invitation mutation
+  const declineInvitation = useMutation(api.invitations.declineInvitation)
   
   const handleAcceptInvitation = async () => {
     if (!invitation || !isSignedIn) return
@@ -50,6 +54,22 @@ export default function InvitePage() {
       console.error('Error accepting invitation:', error)
     } finally {
       setIsAccepting(false)
+    }
+  }
+  
+  const handleDeclineInvitation = async () => {
+    if (!invitation) return
+    
+    setIsDeclining(true)
+    try {
+      await declineInvitation({ token })
+      toast.success('Invitation declined')
+      router.push('/dashboard')
+    } catch (error) {
+      toast.error('Failed to decline invitation')
+      console.error('Error declining invitation:', error)
+    } finally {
+      setIsDeclining(false)
     }
   }
   
@@ -256,10 +276,17 @@ export default function InvitePage() {
             
             <Button 
               variant="outline" 
-              onClick={() => router.push('/dashboard')}
-              disabled={isAccepting}
+              onClick={handleDeclineInvitation}
+              disabled={isAccepting || isDeclining}
             >
-              Decline
+              {isDeclining ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Declining...
+                </>
+              ) : (
+                'Decline'
+              )}
             </Button>
           </div>
         </CardContent>
