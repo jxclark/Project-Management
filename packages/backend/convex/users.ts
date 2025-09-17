@@ -63,3 +63,25 @@ export const getCurrentUser = query({
       .first();
   },
 });
+
+// Get multiple users by their Clerk IDs
+export const getUsersByClerkIds = query({
+  args: { clerkIds: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const users = await Promise.all(
+      args.clerkIds.map(async (clerkId) => {
+        return await ctx.db
+          .query("users")
+          .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+          .first();
+      })
+    );
+
+    return users.filter(Boolean); // Remove null values
+  },
+});

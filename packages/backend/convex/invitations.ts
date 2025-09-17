@@ -147,38 +147,63 @@ export const sendInvitation = mutation({
   },
 })
 
+// Get invitation by token (public - no auth required)
+export const getInvitationByToken = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("invitations")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first()
+  },
+})
+
 // Get invitations sent by current user
 export const getMyInvitations = query({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) {
       throw new Error("Not authenticated")
     }
 
-    return await ctx.db
+    const invitations = await ctx.db
       .query("invitations")
       .withIndex("by_invited_by", (q) => q.eq("invitedBy", identity.subject))
+      .order("desc")
       .collect()
+
+    return invitations
   },
 })
 
-// Get invitation by token (for invitation acceptance page)
-export const getInvitationByToken = query({
-  args: {
-    token: v.string(),
-  },
+// Get invitations for a specific project
+export const getProjectInvitations = query({
+  args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    const invitation = await ctx.db
-      .query("invitations")
-      .withIndex("by_token", (q) => q.eq("token", args.token))
-      .first()
-
-    if (!invitation) {
-      return null
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      throw new Error("Not authenticated")
     }
 
-    return invitation
+    // Check if user is a member of this project
+    const membership = await ctx.db
+      .query("projectMembers")
+      .filter((q) => q.eq(q.field("projectId"), args.projectId))
+      .filter((q) => q.eq(q.field("userId"), identity.subject))
+      .first()
+
+    if (!membership) {
+      throw new Error("Not authorized to view invitations for this project")
+    }
+
+    const invitations = await ctx.db
+      .query("invitations")
+      .filter((q) => q.eq(q.field("projectId"), args.projectId))
+      .order("desc")
+      .collect()
+
+    return invitations
   },
 })
 
@@ -220,10 +245,27 @@ export const acceptInvitation = mutation({
 
     if (!user) {
       // Create user if doesn't exist
+      // Try to get a better name from available identity information
+      let userName = identity.name
+      if (!userName || userName.trim() === '') {
+        // Try to extract name from email
+        const email = identity.email || invitation.email
+        if (email) {
+          const emailParts = email.split('@')[0]
+          // Convert email prefix to a readable name (e.g., john.doe -> John Doe)
+          userName = emailParts
+            .split(/[._-]/)
+            .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+            .join(' ')
+        } else {
+          userName = "New User"
+        }
+      }
+
       const userId = await ctx.db.insert("users", {
         clerkId: identity.subject,
         email: identity.email || invitation.email,
-        name: identity.name || "Unknown User",
+        name: userName,
         avatar: identity.pictureUrl,
         createdAt: Date.now(),
       })
@@ -232,6 +274,38 @@ export const acceptInvitation = mutation({
 
     if (!user) {
       throw new Error("Failed to create or retrieve user")
+    }
+
+    // Update user information if it has changed in Clerk
+    const shouldUpdateUser = 
+      (identity.name && identity.name !== user.name) ||
+      (identity.email && identity.email !== user.email) ||
+      (identity.pictureUrl && identity.pictureUrl !== user.avatar)
+
+    if (shouldUpdateUser) {
+      let updatedName = user.name
+      if (identity.name && identity.name.trim() !== '') {
+        updatedName = identity.name
+      } else if (identity.email && (!user.name || user.name === "Unknown User" || user.name === "New User")) {
+        // If user still has default name, try to extract from email
+        const emailParts = identity.email.split('@')[0]
+        updatedName = emailParts
+          .split(/[._-]/)
+          .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+          .join(' ')
+      }
+
+      await ctx.db.patch(user._id, {
+        name: updatedName,
+        email: identity.email || user.email,
+        avatar: identity.pictureUrl || user.avatar,
+      })
+      
+      // Refresh user object
+      user = await ctx.db.get(user._id)
+      if (!user) {
+        throw new Error("Failed to refresh user after update")
+      }
     }
 
     // Allow invitation acceptance even if emails don't match exactly
@@ -257,6 +331,13 @@ export const acceptInvitation = mutation({
             name: user.name,
             email: user.email,
             role: "member", // Task assignees get member role
+            avatar: user.avatar,
+          })
+        } else {
+          // Update existing membership with latest user info
+          await ctx.db.patch(existingMembership._id, {
+            name: user.name,
+            email: user.email,
             avatar: user.avatar,
           })
         }
@@ -345,7 +426,98 @@ export const cancelInvitation = mutation({
       throw new Error("Can only cancel pending invitations")
     }
 
-    await ctx.db.delete(args.invitationId)
+    await ctx.db.patch(args.invitationId, {
+      status: "cancelled",
+    })
     return args.invitationId
+  },
+})
+
+// Resend an invitation (creates a new invitation with new token)
+export const resendInvitation = mutation({
+  args: { invitationId: v.id("invitations") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      throw new Error("Not authenticated")
+    }
+
+    const originalInvitation = await ctx.db.get(args.invitationId)
+    if (!originalInvitation) {
+      throw new Error("Invitation not found")
+    }
+
+    if (originalInvitation.invitedBy !== identity.subject) {
+      throw new Error("Not authorized to resend this invitation")
+    }
+
+    if (originalInvitation.status === "accepted") {
+      throw new Error("Cannot resend an accepted invitation")
+    }
+
+    // Cancel the original invitation
+    await ctx.db.patch(args.invitationId, {
+      status: "cancelled",
+    })
+
+    // Create a new invitation with the same details but new token and expiry
+    const now = Date.now()
+    const expiresAt = now + (7 * 24 * 60 * 60 * 1000) // 7 days from now
+    const token = generateInvitationToken()
+
+    const newInvitationId = await ctx.db.insert("invitations", {
+      email: originalInvitation.email,
+      invitedBy: identity.subject,
+      projectId: originalInvitation.projectId,
+      taskId: originalInvitation.taskId,
+      type: originalInvitation.type,
+      role: originalInvitation.role,
+      status: "pending",
+      token,
+      expiresAt,
+      createdAt: now,
+      message: originalInvitation.message,
+    })
+
+    // Get inviter's name
+    const inviter = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("clerkId"), identity.subject))
+      .first()
+    
+    const inviterName = inviter?.name || identity.name || "Someone"
+
+    // Send email based on invitation type
+    if (originalInvitation.type === "task" && originalInvitation.taskId) {
+      const task = await ctx.db.get(originalInvitation.taskId)
+      const project = task?.projectId ? await ctx.db.get(task.projectId) : null
+      
+      try {
+        await ctx.scheduler.runAfter(0, internal.emails.sendTaskAssignment, {
+          to: originalInvitation.email,
+          inviterName,
+          taskTitle: task?.title || "Untitled Task",
+          projectName: project?.name || "Unknown Project",
+          invitationToken: token,
+          dueDate: task?.dueDate,
+          message: originalInvitation.message,
+        })
+      } catch (error) {
+        console.error('Failed to schedule task assignment email:', error)
+      }
+    } else {
+      try {
+        await ctx.scheduler.runAfter(0, internal.emails.sendWorkspaceInvitation, {
+          to: originalInvitation.email,
+          inviterName,
+          invitationToken: token,
+          message: originalInvitation.message,
+        })
+      } catch (error) {
+        console.error('Failed to schedule workspace invitation email:', error)
+      }
+    }
+
+    return newInvitationId
   },
 })

@@ -53,14 +53,29 @@ export default function ProjectDetailPage() {
     isSignedIn && isLoaded ? { projectId } : "skip"
   )
   
+  // Get project tasks
+  const projectTasks = useQuery(
+    api.tasks.getProjectTasks,
+    projectId ? { projectId } : "skip"
+  )
+
+  // Get unique assignee IDs from tasks
+  const assigneeIds = projectTasks ? [...new Set(projectTasks.filter(task => task.assignedTo).map(task => task.assignedTo!))] : []
+  
+  // Get user information for all assignees
+  const assigneeUsers = useQuery(
+    api.users.getUsersByClerkIds,
+    assigneeIds.length > 0 ? { clerkIds: assigneeIds } : "skip"
+  )
+
   // Get project members
   const members = useQuery(
     api.projects.getProjectMembers,
     isSignedIn && isLoaded ? { projectId } : "skip"
   )
 
-  // Get project tasks
-  const { tasks, createTask, updateTask, updateTaskStatus, deleteTask, isLoading: tasksLoading } = useTasks(projectId)
+  // Get project update functions
+  const { createTask, updateTask, updateTaskStatus, deleteTask, isLoading: tasksLoading } = useTasks(projectId)
 
   // Get project update functions
   const { updateProject, updateProjectStatus, isLoading } = useProjects()
@@ -459,12 +474,11 @@ export default function ProjectDetailPage() {
           </Button>
         </div>
 
-        {/* Tasks Grid */}
         {tasksLoading ? (
           <div className="flex items-center justify-center py-8">
             <div className="text-slate-600 dark:text-slate-400">Loading tasks...</div>
           </div>
-        ) : tasks.length === 0 ? (
+        ) : projectTasks?.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <CheckCircle2 className="w-12 h-12 text-slate-400 mb-4" />
@@ -482,9 +496,29 @@ export default function ProjectDetailPage() {
           </Card>
         ) : (
           <div className="grid gap-4">
-            {tasks.map((task) => {
-              // Find assignee info from members
-              const assignee = members?.find(m => m.userId === task.assignedTo)
+            {projectTasks?.map((task) => {
+              // Find assignee info from members first, then from assigneeUsers
+              let assignee = members?.find(m => m.userId === task.assignedTo)
+              
+              // If not found in members, look in assigneeUsers
+              if (!assignee && task.assignedTo) {
+                const assigneeUser = assigneeUsers?.find(u => u?.clerkId === task.assignedTo)
+                if (assigneeUser) {
+                  // Create a minimal assignee object for display purposes
+                  assignee = {
+                    name: assigneeUser.name,
+                    avatar: assigneeUser.avatar,
+                    userId: assigneeUser.clerkId,
+                    email: assigneeUser.email,
+                    role: 'member' as const,
+                    // Add required fields with placeholder values
+                    _id: '' as any,
+                    _creationTime: 0,
+                    projectId: projectId
+                  }
+                }
+              }
+              
               const taskWithAssignee: TaskWithAssignee = {
                 ...task,
                 assigneeName: assignee?.name,

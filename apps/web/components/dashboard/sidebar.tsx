@@ -12,7 +12,8 @@ import {
   Settings, 
   Bell,
   Menu,
-  X
+  X,
+  Mail
 } from 'lucide-react'
 import { cn } from '@workspace/ui/lib/utils'
 
@@ -21,6 +22,7 @@ const navigation = [
   { name: 'Projects', href: '/dashboard/projects', icon: FolderKanban },
   { name: 'Tasks', href: '/dashboard/tasks', icon: CheckSquare },
   { name: 'Team', href: '/dashboard/team', icon: Users },
+  { name: 'Invitations', href: '/dashboard/invitations', icon: Mail },
   { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
