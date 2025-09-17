@@ -124,12 +124,28 @@ export const createTask = mutation({
       updatedAt: Date.now(),
     })
 
-    // Update project task count
+    // Update project task count and recalculate progress
     const project = await ctx.db.get(args.projectId)
     if (project) {
+      const newTaskCount = project.taskCount + 1
+      const progress = newTaskCount > 0 ? Math.round((project.completedTasks / newTaskCount) * 100) : 0
+      
       await ctx.db.patch(args.projectId, {
-        taskCount: project.taskCount + 1,
+        taskCount: newTaskCount,
+        progress: progress,
         updatedAt: Date.now(),
+      })
+    }
+
+    // Create notification if task is assigned to someone other than creator
+    if (args.assignedTo && args.assignedTo !== identity.subject) {
+      await ctx.db.insert("notifications", {
+        userId: args.assignedTo,
+        type: "task_assigned",
+        title: `New task assigned: ${args.title}`,
+        message: `You have been assigned a new task in ${project?.name || "a project"}`,
+        read: false,
+        createdAt: Date.now(),
       })
     }
 
@@ -174,18 +190,39 @@ export const updateTask = mutation({
     const wasCompleted = task.status === "completed"
     const isNowCompleted = updates.status === "completed"
 
+    // Check if assignee changed for notifications
+    const wasAssignedTo = task.assignedTo
+    const isNowAssignedTo = updates.assignedTo
+
     await ctx.db.patch(id, {
       ...updates,
       updatedAt: Date.now(),
     })
 
-    // Update project completed task count if status changed
+    // Create notification if task is reassigned to someone new
+    if (isNowAssignedTo && isNowAssignedTo !== wasAssignedTo && isNowAssignedTo !== identity.subject) {
+      const project = await ctx.db.get(task.projectId)
+      await ctx.db.insert("notifications", {
+        userId: isNowAssignedTo,
+        type: "task_assigned",
+        title: `Task reassigned: ${updates.title || task.title}`,
+        message: `You have been assigned a task in ${project?.name || "a project"}`,
+        read: false,
+        createdAt: Date.now(),
+      })
+    }
+
+    // Update project completed task count and progress if status changed
     if (wasCompleted !== isNowCompleted) {
       const project = await ctx.db.get(task.projectId)
       if (project) {
         const completedChange = isNowCompleted ? 1 : -1
+        const newCompletedTasks = Math.max(0, project.completedTasks + completedChange)
+        const progress = project.taskCount > 0 ? Math.round((newCompletedTasks / project.taskCount) * 100) : 0
+        
         await ctx.db.patch(task.projectId, {
-          completedTasks: Math.max(0, project.completedTasks + completedChange),
+          completedTasks: newCompletedTasks,
+          progress: progress,
           updatedAt: Date.now(),
         })
       }
@@ -225,13 +262,17 @@ export const updateTaskStatus = mutation({
       updatedAt: Date.now(),
     })
 
-    // Update project completed task count if status changed
+    // Update project completed task count and progress if status changed
     if (wasCompleted !== isNowCompleted) {
       const project = await ctx.db.get(task.projectId)
       if (project) {
         const completedChange = isNowCompleted ? 1 : -1
+        const newCompletedTasks = Math.max(0, project.completedTasks + completedChange)
+        const progress = project.taskCount > 0 ? Math.round((newCompletedTasks / project.taskCount) * 100) : 0
+        
         await ctx.db.patch(task.projectId, {
-          completedTasks: Math.max(0, project.completedTasks + completedChange),
+          completedTasks: newCompletedTasks,
+          progress: progress,
           updatedAt: Date.now(),
         })
       }
@@ -259,14 +300,19 @@ export const deleteTask = mutation({
 
     await ctx.db.delete(args.id)
 
-    // Update project task counts
+    // Update project task counts and recalculate progress
     const project = await ctx.db.get(task.projectId)
     if (project) {
+      const newTaskCount = Math.max(0, project.taskCount - 1)
+      const newCompletedTasks = wasCompleted 
+        ? Math.max(0, project.completedTasks - 1)
+        : project.completedTasks
+      const progress = newTaskCount > 0 ? Math.round((newCompletedTasks / newTaskCount) * 100) : 0
+      
       await ctx.db.patch(task.projectId, {
-        taskCount: Math.max(0, project.taskCount - 1),
-        completedTasks: wasCompleted 
-          ? Math.max(0, project.completedTasks - 1)
-          : project.completedTasks,
+        taskCount: newTaskCount,
+        completedTasks: newCompletedTasks,
+        progress: progress,
         updatedAt: Date.now(),
       })
     }

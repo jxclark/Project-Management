@@ -26,12 +26,14 @@ export const upsertUser = mutation({
       return existingUser._id;
     } else {
       // Create new user
+      const now = Date.now();
       return await ctx.db.insert("users", {
         clerkId: args.clerkId,
         email: args.email,
         name: args.name,
         avatar: args.avatar,
-        createdAt: Date.now(),
+        createdAt: now,
+        joinedAt: now,
       });
     }
   },
@@ -83,5 +85,34 @@ export const getUsersByClerkIds = query({
     );
 
     return users.filter(Boolean); // Remove null values
+  },
+});
+
+// Make current user an admin (for development/setup)
+export const makeCurrentUserAdmin = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await ctx.db.patch(user._id, {
+      role: "admin",
+      status: "active",
+      joinedAt: user.createdAt,
+      lastActiveAt: Date.now()
+    });
+
+    return { success: true, message: "User is now an admin" };
   },
 });

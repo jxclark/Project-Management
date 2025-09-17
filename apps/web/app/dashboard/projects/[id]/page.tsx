@@ -56,7 +56,7 @@ export default function ProjectDetailPage() {
   // Get project tasks
   const projectTasks = useQuery(
     api.tasks.getProjectTasks,
-    projectId ? { projectId } : "skip"
+    isSignedIn && isLoaded && projectId ? { projectId } : "skip"
   )
 
   // Get unique assignee IDs from tasks

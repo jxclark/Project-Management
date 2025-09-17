@@ -7,7 +7,20 @@ export default defineSchema({
     email: v.string(),
     name: v.string(),
     avatar: v.optional(v.string()),
+    role: v.optional(v.union(
+      v.literal("admin"),
+      v.literal("manager"),
+      v.literal("member"),
+      v.literal("viewer")
+    )),
+    status: v.optional(v.union(
+      v.literal("active"),
+      v.literal("inactive"),
+      v.literal("suspended")
+    )),
     createdAt: v.number(),
+    joinedAt: v.optional(v.number()),
+    lastActiveAt: v.optional(v.number()),
   }).index("by_clerk_id", ["clerkId"]),
 
   projects: defineTable({
