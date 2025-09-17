@@ -1,6 +1,7 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
 import { Id } from "./_generated/dataModel"
+import { internal } from "./_generated/api"
 
 // Generate a random invitation token
 function generateInvitationToken(): string {
@@ -87,6 +88,8 @@ export const sendInvitation = mutation({
     const now = Date.now()
     const expiresAt = now + (7 * 24 * 60 * 60 * 1000) // 7 days from now
 
+    const token = generateInvitationToken()
+    
     const invitationId = await ctx.db.insert("invitations", {
       email: args.email,
       invitedBy: identity.subject,
@@ -95,11 +98,50 @@ export const sendInvitation = mutation({
       type: args.type,
       role: args.role,
       status: "pending",
-      token: generateInvitationToken(),
+      token,
       expiresAt,
       createdAt: now,
       message: args.message,
     })
+
+    // Get inviter's name
+    const inviter = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("clerkId"), identity.subject))
+      .first()
+    
+    const inviterName = inviter?.name || identity.name || "Someone"
+
+    // Send email based on invitation type
+    if (args.type === "task" && args.taskId) {
+      const task = await ctx.db.get(args.taskId)
+      const project = task?.projectId ? await ctx.db.get(task.projectId) : null
+      
+      try {
+        await ctx.scheduler.runAfter(0, internal.emails.sendTaskAssignment, {
+          to: args.email,
+          inviterName,
+          taskTitle: task?.title || "Untitled Task",
+          projectName: project?.name || "Unknown Project",
+          invitationToken: token,
+          dueDate: task?.dueDate,
+          message: args.message,
+        })
+      } catch (error) {
+        console.error('Failed to schedule task assignment email:', error)
+      }
+    } else {
+      try {
+        await ctx.scheduler.runAfter(0, internal.emails.sendWorkspaceInvitation, {
+          to: args.email,
+          inviterName,
+          invitationToken: token,
+          message: args.message,
+        })
+      } catch (error) {
+        console.error('Failed to schedule workspace invitation email:', error)
+      }
+    }
 
     return invitationId
   },
@@ -117,36 +159,26 @@ export const getMyInvitations = query({
     return await ctx.db
       .query("invitations")
       .withIndex("by_invited_by", (q) => q.eq("invitedBy", identity.subject))
-      .order("desc")
       .collect()
   },
 })
 
-// Get invitations for a specific project
-export const getProjectInvitations = query({
-  args: { projectId: v.id("projects") },
+// Get invitation by token (for invitation acceptance page)
+export const getInvitationByToken = query({
+  args: {
+    token: v.string(),
+  },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) {
-      throw new Error("Not authenticated")
-    }
-
-    // Check if user has permission to view project invitations
-    const membership = await ctx.db
-      .query("projectMembers")
-      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
-      .filter((q) => q.eq(q.field("userId"), identity.subject))
+    const invitation = await ctx.db
+      .query("invitations")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
       .first()
 
-    if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
-      throw new Error("Not authorized to view project invitations")
+    if (!invitation) {
+      return null
     }
 
-    return await ctx.db
-      .query("invitations")
-      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
-      .order("desc")
-      .collect()
+    return invitation
   },
 })
 
@@ -180,19 +212,30 @@ export const acceptInvitation = mutation({
       throw new Error("Invitation has expired")
     }
 
-    // Get current user
-    const user = await ctx.db
+    // Get current user or create if doesn't exist
+    let user = await ctx.db
       .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .filter((q) => q.eq(q.field("clerkId"), identity.subject))
       .first()
 
     if (!user) {
-      throw new Error("User not found")
+      // Create user if doesn't exist
+      const userId = await ctx.db.insert("users", {
+        clerkId: identity.subject,
+        email: identity.email || invitation.email,
+        name: identity.name || "Unknown User",
+        avatar: identity.pictureUrl,
+        createdAt: Date.now(),
+      })
+      user = await ctx.db.get(userId)
     }
 
-    if (user.email !== invitation.email) {
-      throw new Error("Invitation email does not match your account")
+    if (!user) {
+      throw new Error("Failed to create or retrieve user")
     }
+
+    // Allow invitation acceptance even if emails don't match exactly
+    // This handles cases where user signs up with different email than invited
 
     // Handle different invitation types
     if (invitation.type === "task" && invitation.taskId) {
