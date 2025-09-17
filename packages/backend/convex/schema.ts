@@ -23,6 +23,34 @@ export default defineSchema({
     lastActiveAt: v.optional(v.number()),
   }).index("by_clerk_id", ["clerkId"]),
 
+  userNotificationSettings: defineTable({
+    userId: v.string(), // Clerk user ID
+    emailNotifications: v.object({
+      taskAssigned: v.boolean(), // When assigned a new task
+      taskDueSoon: v.boolean(), // When task due date is approaching
+      taskCompleted: v.boolean(), // When assigned task is completed by someone else
+      projectInvitation: v.boolean(), // When invited to a project
+      weeklyDigest: v.boolean(), // Weekly summary email
+    }),
+    dueDateReminders: v.object({
+      enabled: v.boolean(),
+      reminderDays: v.array(v.number()), // Days before due date to send reminders [1, 3, 7]
+    }),
+    digestFrequency: v.union(
+      v.literal("daily"),
+      v.literal("weekly"), 
+      v.literal("never")
+    ),
+    quietHours: v.object({
+      enabled: v.boolean(),
+      startTime: v.string(), // "22:00"
+      endTime: v.string(), // "08:00"
+      timezone: v.string(), // "America/New_York"
+    }),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
+
   projects: defineTable({
     name: v.string(),
     description: v.string(),
@@ -131,6 +159,8 @@ export default defineSchema({
       v.literal("invitation_expired"),
       v.literal("invitation_cancelled"),
       v.literal("task_assigned"),
+      v.literal("task_due_reminder"),
+      v.literal("task_completed"),
       v.literal("project_invitation"),
       v.literal("workspace_invitation")
     ),
