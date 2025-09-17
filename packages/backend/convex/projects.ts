@@ -1,7 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-// Get all projects for the current user
+// Get projects for the current user (only projects they're members of)
 export const getProjects = query({
   args: {},
   handler: async (ctx) => {
@@ -10,12 +10,19 @@ export const getProjects = query({
       throw new Error("Not authenticated");
     }
 
-    const projects = await ctx.db.query("projects").collect();
-    
-    // Get members for each project
+    // Get user's project memberships
+    const memberships = await ctx.db
+      .query("projectMembers")
+      .filter((q) => q.eq(q.field("userId"), identity.subject))
+      .collect();
+
+    // Get projects where user is a member
     const projectsWithMembers = await Promise.all(
-      projects.map(async (project) => {
-        const members = await ctx.db
+      memberships.map(async (membership) => {
+        const project = await ctx.db.get(membership.projectId);
+        if (!project) return null;
+
+        const allMembers = await ctx.db
           .query("projectMembers")
           .filter((q) => q.eq(q.field("projectId"), project._id))
           .collect();
@@ -23,7 +30,7 @@ export const getProjects = query({
         return {
           ...project,
           id: project._id,
-          members: members.map(member => ({
+          members: allMembers.map(member => ({
             id: member.userId,
             name: member.name,
             email: member.email,
@@ -35,7 +42,7 @@ export const getProjects = query({
       })
     );
 
-    return projectsWithMembers;
+    return projectsWithMembers.filter(project => project !== null);
   },
 });
 
@@ -45,6 +52,17 @@ export const getProjectById = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
+    }
+
+    // Check if user is a member of this project
+    const membership = await ctx.db
+      .query("projectMembers")
+      .filter((q) => q.eq(q.field("projectId"), args.projectId))
+      .filter((q) => q.eq(q.field("userId"), identity.subject))
+      .first();
+
+    if (!membership) {
+      throw new Error("Not authorized to view this project");
     }
 
     const project = await ctx.db.get(args.projectId);

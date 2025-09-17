@@ -2,13 +2,24 @@ import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
 import { Id } from "./_generated/dataModel"
 
-// Get all tasks for a project
+// Get all tasks for a project (only if user is a member)
 export const getProjectTasks = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) {
       throw new Error("Not authenticated")
+    }
+
+    // Check if user is a member of this project
+    const membership = await ctx.db
+      .query("projectMembers")
+      .filter((q) => q.eq(q.field("projectId"), args.projectId))
+      .filter((q) => q.eq(q.field("userId"), identity.subject))
+      .first()
+
+    if (!membership) {
+      throw new Error("Not authorized to view tasks in this project")
     }
 
     const tasks = await ctx.db
@@ -20,7 +31,7 @@ export const getProjectTasks = query({
   },
 })
 
-// Get tasks assigned to current user
+// Get tasks assigned to current user or in projects they're members of
 export const getMyTasks = query({
   args: {},
   handler: async (ctx, args) => {
@@ -29,16 +40,27 @@ export const getMyTasks = query({
       throw new Error("Not authenticated")
     }
 
-    const tasks = await ctx.db
-      .query("tasks")
-      .withIndex("by_assignee", (q) => q.eq("assignedTo", identity.subject))
+    // Get user's project memberships
+    const memberships = await ctx.db
+      .query("projectMembers")
+      .filter((q) => q.eq(q.field("userId"), identity.subject))
       .collect()
 
-    return tasks
+    const projectIds = memberships.map(m => m.projectId)
+
+    // Get tasks either assigned to user OR in projects they're members of
+    const allTasks = await ctx.db.query("tasks").collect()
+    
+    const userTasks = allTasks.filter(task => 
+      task.assignedTo === identity.subject || 
+      projectIds.includes(task.projectId)
+    )
+
+    return userTasks
   },
 })
 
-// Get a single task by ID
+// Get a single task by ID (only if user has access)
 export const getTaskById = query({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, args) => {
@@ -48,6 +70,23 @@ export const getTaskById = query({
     }
 
     const task = await ctx.db.get(args.taskId)
+    if (!task) {
+      return null
+    }
+
+    // Check if user is assigned to this task OR is a member of the project
+    const isAssigned = task.assignedTo === identity.subject
+    
+    const membership = await ctx.db
+      .query("projectMembers")
+      .filter((q) => q.eq(q.field("projectId"), task.projectId))
+      .filter((q) => q.eq(q.field("userId"), identity.subject))
+      .first()
+
+    if (!isAssigned && !membership) {
+      throw new Error("Not authorized to view this task")
+    }
+
     return task
   },
 })

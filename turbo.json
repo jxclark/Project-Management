@@ -19,5 +19,10 @@
     }
   },
   "globalDependencies": ["**/.env.*local"],
-  "globalEnv": ["NODE_ENV"]
+  "globalEnv": [
+    "NODE_ENV",
+    "RESEND_API_KEY",
+    "RESEND_FROM_EMAIL",
+    "NEXT_PUBLIC_APP_URL"
+  ]
 }
