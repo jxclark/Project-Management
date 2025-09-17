@@ -95,7 +95,8 @@ export default defineSchema({
       v.literal("pending"),
       v.literal("accepted"),
       v.literal("declined"),
-      v.literal("expired")
+      v.literal("expired"),
+      v.literal("cancelled")
     ),
     token: v.string(), // Unique invitation token
     expiresAt: v.number(), // timestamp
